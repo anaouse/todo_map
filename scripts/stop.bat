@@ -1,16 +1,21 @@
 @echo off
-chcp 65001 >nul
-echo 正在停止 TodoMap 服务...
+setlocal
 
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":11134.*LISTENING"') do (
-    echo 停止端口 11134 (PID: %%a)
-    taskkill /f /pid %%a 2>nul
+echo Stopping TodoMap services...
+
+for /f %%a in (
+    'powershell -NoProfile -Command "(Get-NetTCPConnection -LocalPort 11134 -State Listen -ErrorAction SilentlyContinue).OwningProcess"'
+) do (
+    echo Stopping backend PID %%a
+    taskkill /F /T /PID %%a
 )
 
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000.*LISTENING"') do (
-    echo 停止端口 3000 (PID: %%a)
-    taskkill /f /pid %%a 2>nul
+for /f %%a in (
+    'powershell -NoProfile -Command "(Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue).OwningProcess"'
+) do (
+    echo Stopping frontend PID %%a
+    taskkill /F /T /PID %%a
 )
 
-echo 已停止。
+echo Done.
 pause

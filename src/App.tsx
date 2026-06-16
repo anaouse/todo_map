@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
 const GRID = 32;
-const MIN_SCALE = 0.3;
-const MAX_SCALE = 2.5;
+const CANVAS_W = 4000;
+const CANVAS_H = 3000;
 const API = "http://localhost:11134";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -24,9 +24,6 @@ interface CanvasMeta {
 
 function snapWorld(w: number) {
   return Math.round(w / GRID) * GRID;
-}
-function toWorld(px: number, scale: number, off: number) {
-  return (px - off) / scale;
 }
 
 let idCounter = Date.now();
@@ -80,7 +77,6 @@ export default function App() {
   // Todo state
   const [items, setItems] = useState<TodoItem[]>([]);
   const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -96,21 +92,23 @@ export default function App() {
   } | null>(null);
   const [panning, setPanning] = useState<{
     startMouse: { x: number; y: number };
-    startOffset: { x: number; y: number };
+    startScroll: { x: number; y: number };
   } | null>(null);
   const [marquee, setMarquee] = useState<{
     startScreen: { x: number; y: number };
     endScreen: { x: number; y: number };
   } | null>(null);
 
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newCanvasInputRef = useRef<HTMLInputElement | null>(null);
+  const editingIdRef = useRef<string | null>(null);
+  editingIdRef.current = editingId;
 
   // ── Persistence ─────────────────────────────────────────────────────────────
 
-  // Load canvas list on mount
   useEffect(() => {
     apiListCanvases().then((list) => {
       setCanvases(list);
@@ -126,11 +124,14 @@ export default function App() {
     setItems(data.items ?? []);
     setCurrentCanvas(meta);
     setScale(1);
-    setOffset({ x: 0, y: 0 });
     setMenuOpen(false);
+    // Scroll to top-left on canvas switch
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+      scrollRef.current.scrollLeft = 0;
+    }
   }, []);
 
-  // Debounced auto-save whenever items change
   useEffect(() => {
     if (!currentCanvas) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -154,7 +155,6 @@ export default function App() {
     loadCanvas(meta);
   }, [newCanvasName, loadCanvas]);
 
-  // Focus new-canvas input when it appears
   useEffect(() => {
     if (creatingCanvas) newCanvasInputRef.current?.focus();
   }, [creatingCanvas]);
@@ -167,31 +167,70 @@ export default function App() {
     }
   }, [editingId]);
 
-  // ── Canvas interactions ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const refocus = () => {
+      if (editingIdRef.current && inputRefs.current[editingIdRef.current]) {
+        inputRefs.current[editingIdRef.current]?.focus();
+      }
+    };
+    window.addEventListener("focus", refocus);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refocus();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", refocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
+  // ── Mouse position helpers ───────────────────────────────────────────────────
+
+  // Convert client coords to world coords (accounting for scroll)
+  const clientToWorld = useCallback((clientX: number, clientY: number) => {
+    const scroll = scrollRef.current!;
+    const rect = scroll.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left + scroll.scrollLeft) / scale,
+      y: (clientY - rect.top  + scroll.scrollTop)  / scale,
+    };
+  }, [scale]);
+
+  // ── Wheel zoom ───────────────────────────────────────────────────────────────
 
   const onWheel = useCallback(
-    (e: React.WheelEvent) => {
+    (e: WheelEvent) => {
       e.preventDefault();
-      const rect = canvasRef.current!.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
+      const scroll = scrollRef.current!;
+      const rect = scroll.getBoundingClientRect();
+      const mx = e.clientX - rect.left; // mouse pos relative to viewport
       const my = e.clientY - rect.top;
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * delta));
-      setOffset((prev) => ({
-        x: mx - (mx - prev.x) * (newScale / scale),
-        y: my - (my - prev.y) * (newScale / scale),
-      }));
+      const newScale = Math.min(2.5, Math.max(0.3, scale * delta));
+      // Adjust scroll so the point under the mouse stays fixed
+      const ratio = newScale / scale;
+      scroll.scrollLeft = (scroll.scrollLeft + mx) * ratio - mx;
+      scroll.scrollTop  = (scroll.scrollTop  + my) * ratio - my;
       setScale(newScale);
     },
     [scale],
   );
 
+  // Attach wheel listener as non-passive so preventDefault works
+  useEffect(() => {
+    const el = scrollRef.current!;
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [onWheel]);
+
+  // ── Canvas interactions ──────────────────────────────────────────────────────
+
   const onDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       if ((e.target as HTMLElement).closest(".todo-node")) return;
-      const rect = canvasRef.current!.getBoundingClientRect();
-      const gx = snapWorld(toWorld(e.clientX - rect.left, scale, offset.x));
-      const gy = snapWorld(toWorld(e.clientY - rect.top, scale, offset.y));
+      const { x, y } = clientToWorld(e.clientX, e.clientY);
+      const gx = Math.max(0, Math.min(CANVAS_W - 200, snapWorld(x)));
+      const gy = Math.max(0, Math.min(CANVAS_H - 40, snapWorld(y)));
       const id = newId();
       setItems((prev) => [
         ...prev,
@@ -200,7 +239,7 @@ export default function App() {
       setEditingId(id);
       setSelectedIds(new Set());
     },
-    [scale, offset],
+    [clientToWorld],
   );
 
   const onMouseDown = useCallback(
@@ -210,32 +249,30 @@ export default function App() {
         return;
       }
       const onNode = (e.target as HTMLElement).closest(".todo-node");
-      if (e.button === 1 || (e.button === 0 && !onNode && !e.ctrlKey)) {
-        e.preventDefault();
+      if (e.button === 0 && !onNode && !e.ctrlKey) {
         setSelectedIds(new Set());
+        // Start panning by dragging the background
+        const scroll = scrollRef.current!;
         setPanning({
           startMouse: { x: e.clientX, y: e.clientY },
-          startOffset: { ...offset },
+          startScroll: { x: scroll.scrollLeft, y: scroll.scrollTop },
         });
       }
       if (e.button === 0 && !onNode && e.ctrlKey) {
         e.preventDefault();
-        setMarquee({
-          startScreen: { x: e.clientX, y: e.clientY },
-          endScreen: { x: e.clientX, y: e.clientY },
-        });
+        const pos = { x: e.clientX, y: e.clientY };
+        setMarquee({ startScreen: pos, endScreen: pos });
       }
     },
-    [offset, menuOpen],
+    [menuOpen],
   );
 
   const onMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (panning) {
-        setOffset({
-          x: panning.startOffset.x + e.clientX - panning.startMouse.x,
-          y: panning.startOffset.y + e.clientY - panning.startMouse.y,
-        });
+        const scroll = scrollRef.current!;
+        scroll.scrollLeft = panning.startScroll.x - (e.clientX - panning.startMouse.x);
+        scroll.scrollTop  = panning.startScroll.y - (e.clientY - panning.startMouse.y);
       }
       if (marquee) {
         setMarquee((prev) =>
@@ -243,72 +280,60 @@ export default function App() {
         );
       }
       if (dragging) {
-        const dx = e.clientX - dragging.startMouse.x;
-        const dy = e.clientY - dragging.startMouse.y;
+        const { x: wx, y: wy } = clientToWorld(e.clientX, e.clientY);
+        const dx = wx - clientToWorld(dragging.startMouse.x, dragging.startMouse.y).x;
+        const dy = wy - clientToWorld(dragging.startMouse.x, dragging.startMouse.y).y;
         setItems((prev) =>
           prev.map((it) =>
             it.id === dragging.id
               ? {
                   ...it,
-                  x: snapWorld(dragging.startPos.x + dx / scale),
-                  y: snapWorld(dragging.startPos.y + dy / scale),
+                  x: Math.max(0, Math.min(CANVAS_W - 200, snapWorld(dragging.startPos.x + dx))),
+                  y: Math.max(0, Math.min(CANVAS_H - 40, snapWorld(dragging.startPos.y + dy))),
                 }
               : it,
           ),
         );
       }
       if (multiDrag) {
-        const dx = e.clientX - multiDrag.startMouse.x;
-        const dy = e.clientY - multiDrag.startMouse.y;
+        const { x: wx, y: wy } = clientToWorld(e.clientX, e.clientY);
+        const { x: sx, y: sy } = clientToWorld(multiDrag.startMouse.x, multiDrag.startMouse.y);
+        const dx = wx - sx;
+        const dy = wy - sy;
         setItems((prev) =>
           prev.map((it) => {
             const sp = multiDrag.startPositions[it.id];
             if (!sp) return it;
             return {
               ...it,
-              x: snapWorld(sp.x + dx / scale),
-              y: snapWorld(sp.y + dy / scale),
+              x: Math.max(0, Math.min(CANVAS_W - 200, snapWorld(sp.x + dx))),
+              y: Math.max(0, Math.min(CANVAS_H - 40, snapWorld(sp.y + dy))),
             };
           }),
         );
       }
     },
-    [panning, marquee, dragging, multiDrag, scale],
+    [marquee, dragging, multiDrag, panning, clientToWorld],
   );
 
   const onMouseUp = useCallback(
     (_e: React.MouseEvent) => {
       if (marquee) {
-        const rect = canvasRef.current!.getBoundingClientRect();
-        const minWX = toWorld(
-          Math.min(marquee.startScreen.x, marquee.endScreen.x) - rect.left,
-          scale,
-          offset.x,
-        );
-        const maxWX = toWorld(
-          Math.max(marquee.startScreen.x, marquee.endScreen.x) - rect.left,
-          scale,
-          offset.x,
-        );
-        const minWY = toWorld(
-          Math.min(marquee.startScreen.y, marquee.endScreen.y) - rect.top,
-          scale,
-          offset.y,
-        );
-        const maxWY = toWorld(
-          Math.max(marquee.startScreen.y, marquee.endScreen.y) - rect.top,
-          scale,
-          offset.y,
-        );
+        const scroll = scrollRef.current!;
+        const rect = scroll.getBoundingClientRect();
+        const toW = (cx: number, cy: number) => ({
+          x: (cx - rect.left + scroll.scrollLeft) / scale,
+          y: (cy - rect.top  + scroll.scrollTop)  / scale,
+        });
+        const a = toW(marquee.startScreen.x, marquee.startScreen.y);
+        const b = toW(marquee.endScreen.x, marquee.endScreen.y);
+        const minX = Math.min(a.x, b.x);
+        const maxX = Math.max(a.x, b.x);
+        const minY = Math.min(a.y, b.y);
+        const maxY = Math.max(a.y, b.y);
         const hit = new Set(
           items
-            .filter(
-              (it) =>
-                it.x >= minWX &&
-                it.x <= maxWX &&
-                it.y >= minWY &&
-                it.y <= maxWY,
-            )
+            .filter((it) => it.x >= minX && it.x <= maxX && it.y >= minY && it.y <= maxY)
             .map((it) => it.id),
         );
         setSelectedIds(hit);
@@ -318,7 +343,7 @@ export default function App() {
       setDragging(null);
       setMultiDrag(null);
     },
-    [marquee, scale, offset, items],
+    [marquee, items, scale],
   );
 
   const onNodeMouseDown = useCallback(
@@ -329,8 +354,7 @@ export default function App() {
       if (selectedIds.has(id) && selectedIds.size > 1) {
         const startPositions: Record<string, { x: number; y: number }> = {};
         items.forEach((it) => {
-          if (selectedIds.has(it.id))
-            startPositions[it.id] = { x: it.x, y: it.y };
+          if (selectedIds.has(it.id)) startPositions[it.id] = { x: it.x, y: it.y };
         });
         setMultiDrag({
           startMouse: { x: e.clientX, y: e.clientY },
@@ -372,10 +396,8 @@ export default function App() {
       const others = items.filter((it) => it.id !== id);
       let candidates: TodoItem[];
       if (dir === "ArrowUp") candidates = others.filter((it) => it.y < cur.y);
-      else if (dir === "ArrowDown")
-        candidates = others.filter((it) => it.y > cur.y);
-      else if (dir === "ArrowLeft")
-        candidates = others.filter((it) => it.x < cur.x);
+      else if (dir === "ArrowDown") candidates = others.filter((it) => it.y > cur.y);
+      else if (dir === "ArrowLeft") candidates = others.filter((it) => it.x < cur.x);
       else candidates = others.filter((it) => it.x > cur.x);
       if (!candidates.length) return;
       const isV = dir === "ArrowUp" || dir === "ArrowDown";
@@ -414,7 +436,11 @@ export default function App() {
         e.preventDefault();
         const d = e.shiftKey ? -4 : 4;
         setItems((prev) =>
-          prev.map((it) => (it.id === id ? { ...it, x: it.x + d * GRID } : it)),
+          prev.map((it) =>
+            it.id === id
+              ? { ...it, x: Math.max(0, Math.min(CANVAS_W - 200, it.x + d * GRID)) }
+              : it,
+          ),
         );
       } else if (e.key === "d" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
@@ -422,25 +448,14 @@ export default function App() {
       } else if (e.key === "p" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         toggleDone(id);
-      } else if (
-        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
-      ) {
+      } else if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         const inp = e.currentTarget;
         const atS = inp.selectionStart === 0 && inp.selectionEnd === 0;
-        const atE =
-          inp.selectionStart === inp.value.length &&
-          inp.selectionEnd === inp.value.length;
+        const atE = inp.selectionStart === inp.value.length && inp.selectionEnd === inp.value.length;
         const isH = e.key === "ArrowLeft" || e.key === "ArrowRight";
-        if (
-          !isH ||
-          (e.key === "ArrowLeft" && atS) ||
-          (e.key === "ArrowRight" && atE)
-        ) {
+        if (!isH || (e.key === "ArrowLeft" && atS) || (e.key === "ArrowRight" && atE)) {
           e.preventDefault();
-          navigateTo(
-            id,
-            e.key as "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight",
-          );
+          navigateTo(id, e.key as "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight");
         }
       } else if (e.key === "Escape") {
         setEditingId(null);
@@ -449,260 +464,206 @@ export default function App() {
     [items, deleteItem, toggleDone, navigateTo],
   );
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ── Marquee rect in scroll-relative coords ────────────────────────────────
 
-  const marqueeRect = marquee
-    ? {
-        left: Math.min(marquee.startScreen.x, marquee.endScreen.x),
-        top: Math.min(marquee.startScreen.y, marquee.endScreen.y),
-        width: Math.abs(marquee.endScreen.x - marquee.startScreen.x),
-        height: Math.abs(marquee.endScreen.y - marquee.startScreen.y),
-      }
-    : null;
+  const marqueeStyle = (() => {
+    if (!marquee) return null;
+    const scroll = scrollRef.current;
+    if (!scroll) return null;
+    const rect = scroll.getBoundingClientRect();
+    const toW = (cx: number, cy: number) => ({
+      x: (cx - rect.left + scroll.scrollLeft) / scale,
+      y: (cy - rect.top  + scroll.scrollTop)  / scale,
+    });
+    const a = toW(marquee.startScreen.x, marquee.startScreen.y);
+    const b = toW(marquee.endScreen.x, marquee.endScreen.y);
+    return {
+      left: Math.min(a.x, b.x),
+      top: Math.min(a.y, b.y),
+      width: Math.abs(b.x - a.x),
+      height: Math.abs(b.y - a.y),
+    };
+  })();
 
-  const dotSize = Math.max(0.5, scale);
-  const gridSpacing = GRID * scale;
   const isMultiDragging = multiDrag !== null;
 
   return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        overflow: "hidden",
+    <div style={{ width: "100vw", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", background: "#f9f9f9", fontFamily: "monospace" }}>
+
+      {/* ── Top bar ────────────────────────────────────────────────────── */}
+      <div style={{
+        position: "relative",
+        zIndex: 200,
+        height: 48,
+        flexShrink: 0,
         background: "#f9f9f9",
-        fontFamily: "monospace",
-      }}
-    >
-      {/* ── Menu button (top-left) ─────────────────────────────────────── */}
-      <div style={{ position: "fixed", top: 12, left: 12, zIndex: 100 }}>
-        <button
-          onClick={() => setMenuOpen((v) => !v)}
-          style={{
-            width: 36,
-            height: 36,
-            border: "1px solid #ccc",
-            borderRadius: 6,
-            background: menuOpen ? "#f0f0f0" : "#fff",
-            cursor: "pointer",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-            padding: 0,
-          }}
-        >
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              style={{
-                display: "block",
-                width: 16,
-                height: 1.5,
-                background: "#555",
-                borderRadius: 1,
-              }}
-            />
-          ))}
-        </button>
-
-        {/* ── Dropdown ──────────────────────────────────────────────────── */}
-        {menuOpen && (
-          <div
+        borderBottom: "1px solid #e8e8e8",
+        display: "flex",
+        alignItems: "center",
+        padding: "0 12px",
+      }}>
+        {/* Menu button */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
             style={{
-              position: "absolute",
-              top: 42,
-              left: 0,
-              background: "#fff",
-              border: "1px solid #ddd",
+              width: 36,
+              height: 36,
+              border: "1px solid #ccc",
               borderRadius: 6,
-              boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
-              minWidth: 200,
-              overflow: "hidden",
+              background: menuOpen ? "#f0f0f0" : "#fff",
+              cursor: "pointer",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+              padding: 0,
             }}
-            onMouseDown={(e) => e.stopPropagation()}
           >
-            {/* Canvas list */}
-            {canvases.length === 0 && (
-              <div
-                style={{ padding: "10px 14px", fontSize: 12, color: "#aaa" }}
-              >
-                no canvases yet
-              </div>
-            )}
-            {canvases.map((c) => (
-              <div
-                key={c.id}
-                onClick={() => loadCanvas(c)}
-                style={{
-                  padding: "8px 14px",
-                  fontSize: 13,
-                  cursor: "pointer",
-                  background:
-                    currentCanvas?.id === c.id ? "#f5f5f5" : "transparent",
-                  color: currentCanvas?.id === c.id ? "#222" : "#444",
-                  fontWeight: currentCanvas?.id === c.id ? 600 : 400,
-                  borderLeft:
-                    currentCanvas?.id === c.id
-                      ? "2px solid #888"
-                      : "2px solid transparent",
-                }}
-                onMouseEnter={(e) => {
-                  if (currentCanvas?.id !== c.id)
-                    (e.currentTarget as HTMLDivElement).style.background =
-                      "#fafafa";
-                }}
-                onMouseLeave={(e) => {
-                  if (currentCanvas?.id !== c.id)
-                    (e.currentTarget as HTMLDivElement).style.background =
-                      "transparent";
-                }}
-              >
-                {c.name}
-              </div>
+            {[0, 1, 2].map((i) => (
+              <span key={i} style={{ display: "block", width: 16, height: 1.5, background: "#555", borderRadius: 1 }} />
             ))}
+          </button>
 
-            {/* Divider */}
-            <div style={{ height: 1, background: "#eee", margin: "4px 0" }} />
-
-            {/* New canvas */}
-            {!creatingCanvas ? (
-              <div
-                onClick={() => setCreatingCanvas(true)}
-                style={{
-                  padding: "8px 14px",
-                  fontSize: 13,
-                  cursor: "pointer",
-                  color: "#666",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.background =
-                    "#fafafa";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.background =
-                    "transparent";
-                }}
-              >
-                + new canvas
-              </div>
-            ) : (
-              <div style={{ padding: "6px 10px", display: "flex", gap: 6 }}>
-                <input
-                  ref={newCanvasInputRef}
-                  value={newCanvasName}
-                  onChange={(e) => setNewCanvasName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreateCanvas();
-                    if (e.key === "Escape") {
-                      setCreatingCanvas(false);
-                      setNewCanvasName("");
-                    }
-                  }}
-                  placeholder="canvas name"
+          {/* Dropdown */}
+          {menuOpen && (
+            <div
+              style={{
+                position: "absolute",
+                top: 42,
+                left: 0,
+                background: "#fff",
+                border: "1px solid #ddd",
+                borderRadius: 6,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+                minWidth: 200,
+                overflow: "hidden",
+                zIndex: 300,
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {canvases.length === 0 && (
+                <div style={{ padding: "10px 14px", fontSize: 12, color: "#aaa" }}>no canvases yet</div>
+              )}
+              {canvases.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => loadCanvas(c)}
                   style={{
-                    flex: 1,
-                    fontSize: 12,
-                    border: "1px solid #ccc",
-                    borderRadius: 4,
-                    padding: "4px 6px",
-                    fontFamily: "monospace",
-                    outline: "none",
-                  }}
-                />
-                <button
-                  onClick={handleCreateCanvas}
-                  style={{
-                    fontSize: 12,
-                    border: "1px solid #ccc",
-                    borderRadius: 4,
-                    padding: "4px 8px",
+                    padding: "8px 14px",
+                    fontSize: 13,
                     cursor: "pointer",
-                    background: "#fff",
+                    background: currentCanvas?.id === c.id ? "#f5f5f5" : "transparent",
+                    color: currentCanvas?.id === c.id ? "#222" : "#444",
+                    fontWeight: currentCanvas?.id === c.id ? 600 : 400,
+                    borderLeft: currentCanvas?.id === c.id ? "2px solid #888" : "2px solid transparent",
                   }}
+                  onMouseEnter={(e) => { if (currentCanvas?.id !== c.id) (e.currentTarget as HTMLDivElement).style.background = "#fafafa"; }}
+                  onMouseLeave={(e) => { if (currentCanvas?.id !== c.id) (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
                 >
-                  ok
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+                  {c.name}
+                </div>
+              ))}
+              <div style={{ height: 1, background: "#eee", margin: "4px 0" }} />
+              {!creatingCanvas ? (
+                <div
+                  onClick={() => setCreatingCanvas(true)}
+                  style={{ padding: "8px 14px", fontSize: 13, cursor: "pointer", color: "#666" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#fafafa"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
+                >
+                  + new canvas
+                </div>
+              ) : (
+                <div style={{ padding: "6px 10px", display: "flex", gap: 6 }}>
+                  <input
+                    ref={newCanvasInputRef}
+                    value={newCanvasName}
+                    onChange={(e) => setNewCanvasName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreateCanvas();
+                      if (e.key === "Escape") { setCreatingCanvas(false); setNewCanvasName(""); }
+                    }}
+                    placeholder="canvas name"
+                    style={{ flex: 1, fontSize: 12, border: "1px solid #ccc", borderRadius: 4, padding: "4px 6px", fontFamily: "monospace", outline: "none" }}
+                  />
+                  <button
+                    onClick={handleCreateCanvas}
+                    style={{ fontSize: 12, border: "1px solid #ccc", borderRadius: 4, padding: "4px 8px", cursor: "pointer", background: "#fff" }}
+                  >
+                    ok
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-      {/* ── Canvas name label ──────────────────────────────────────────── */}
-      {currentCanvas && (
-        <div
-          style={{
-            position: "fixed",
-            top: 16,
+        {/* Canvas title — centered in the bar */}
+        {currentCanvas && (
+          <div style={{
+            position: "absolute",
             left: "50%",
             transform: "translateX(-50%)",
             fontSize: 12,
             color: "#bbb",
             pointerEvents: "none",
-            zIndex: 90,
             letterSpacing: "0.05em",
-          }}
-        >
-          {currentCanvas.name}
-        </div>
-      )}
+          }}>
+            {currentCanvas.name}
+          </div>
+        )}
+      </div>
 
-      {/* ── Main canvas area ───────────────────────────────────────────── */}
+      {/* ── Scrollable canvas area ─────────────────────────────────────── */}
       <div
+        ref={scrollRef}
         style={{
-          width: "100%",
-          height: "100%",
-          cursor: panning ? "grabbing" : marquee ? "crosshair" : "default",
+          flex: 1,
+          overflow: "auto",
+          cursor: panning ? "grabbing" : marquee ? "crosshair" : "grab",
           userSelect: "none",
+          position: "relative",
         }}
-        ref={canvasRef}
-        onWheel={onWheel}
         onDoubleClick={onDoubleClick}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseUp}
       >
-        {/* Grid dots */}
-        <svg
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-          }}
-        >
-          <defs>
-            <pattern
-              id="grid"
-              x={offset.x % gridSpacing}
-              y={offset.y % gridSpacing}
-              width={gridSpacing}
-              height={gridSpacing}
-              patternUnits="userSpaceOnUse"
-            >
-              <circle cx={0} cy={0} r={dotSize} fill="#ccc" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
-
-        {/* World layer */}
+        {/* Fixed-size world */}
+        {/* Size wrapper expands to match scaled world so scrollbars are correct */}
+        <div style={{ width: CANVAS_W * scale, height: CANVAS_H * scale, position: "relative", flexShrink: 0 }}>
         <div
+          ref={worldRef}
           style={{
             position: "absolute",
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+            top: 0,
+            left: 0,
+            width: CANVAS_W,
+            height: CANVAS_H,
+            transform: `scale(${scale})`,
             transformOrigin: "0 0",
           }}
         >
+          {/* Grid dots */}
+          <svg
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+          >
+            <defs>
+              <pattern id="grid" x={0} y={0} width={GRID} height={GRID} patternUnits="userSpaceOnUse">
+                <circle cx={0} cy={0} r={0.8} fill="#ccc" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+          </svg>
+
+          {/* Todo nodes */}
           {items.map((item) => {
             const isSelected = selectedIds.has(item.id);
-            const isDraggingThis =
-              dragging?.id === item.id || (isMultiDragging && isSelected);
+            const isDraggingThis = dragging?.id === item.id || (isMultiDragging && isSelected);
             return (
               <div
                 key={item.id}
@@ -726,9 +687,9 @@ export default function App() {
                       : "0 1px 3px rgba(0,0,0,0.06)",
                   minWidth: 120,
                   whiteSpace: "nowrap",
-                  outline:
-                    isSelected && !isDraggingThis ? "1.5px solid #aaa" : "none",
+                  outline: isSelected && !isDraggingThis ? "1.5px solid #aaa" : "none",
                   outlineOffset: 2,
+                  zIndex: isDraggingThis ? 10 : 1,
                 }}
                 onMouseDown={(e) => onNodeMouseDown(e, item.id)}
                 onMouseEnter={() => setHoveredId(item.id)}
@@ -744,29 +705,22 @@ export default function App() {
                   checked={item.done}
                   onChange={() => toggleDone(item.id)}
                   onClick={(e) => e.stopPropagation()}
-                  style={{
-                    cursor: "pointer",
-                    accentColor: "#555",
-                    flexShrink: 0,
-                  }}
+                  style={{ cursor: "pointer", accentColor: "#555", flexShrink: 0 }}
                 />
                 {editingId === item.id ? (
                   <input
-                    ref={(el) => {
-                      inputRefs.current[item.id] = el;
-                    }}
+                    ref={(el) => { inputRefs.current[item.id] = el; }}
                     value={item.text}
                     onChange={(e) =>
                       setItems((prev) =>
-                        prev.map((it) =>
-                          it.id === item.id
-                            ? { ...it, text: e.target.value }
-                            : it,
-                        ),
+                        prev.map((it) => (it.id === item.id ? { ...it, text: e.target.value } : it)),
                       )
                     }
                     onKeyDown={(e) => onKeyDown(e, item.id)}
-                    onBlur={() => setEditingId(null)}
+                    onBlur={() => {
+                      if (!document.hasFocus()) return;
+                      setEditingId(null);
+                    }}
                     onClick={(e) => e.stopPropagation()}
                     style={{
                       border: "none",
@@ -779,25 +733,20 @@ export default function App() {
                     }}
                   />
                 ) : (
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: item.done ? "#aaa" : "#222",
-                      textDecoration: item.done ? "line-through" : "none",
-                      minWidth: 80,
-                      display: "inline-block",
-                    }}
-                  >
+                  <span style={{
+                    fontSize: 13,
+                    color: item.done ? "#aaa" : "#222",
+                    textDecoration: item.done ? "line-through" : "none",
+                    minWidth: 80,
+                    display: "inline-block",
+                  }}>
                     {item.text || <span style={{ color: "#bbb" }}>…</span>}
                   </span>
                 )}
                 {hoveredId === item.id && editingId !== item.id && (
                   <button
                     onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteItem(item.id);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
                     title="Delete (Ctrl+D)"
                     style={{
                       marginLeft: 2,
@@ -817,23 +766,25 @@ export default function App() {
               </div>
             );
           })}
-        </div>
 
-        {/* Marquee */}
-        {marqueeRect && marqueeRect.width > 2 && marqueeRect.height > 2 && (
-          <div
-            style={{
-              position: "fixed",
-              left: marqueeRect.left,
-              top: marqueeRect.top,
-              width: marqueeRect.width,
-              height: marqueeRect.height,
-              border: "1px dashed #888",
-              background: "rgba(100,100,100,0.06)",
-              pointerEvents: "none",
-            }}
-          />
-        )}
+          {/* Marquee */}
+          {marqueeStyle && marqueeStyle.width > 2 && marqueeStyle.height > 2 && (
+            <div
+              style={{
+                position: "absolute",
+                left: marqueeStyle.left,
+                top: marqueeStyle.top,
+                width: marqueeStyle.width,
+                height: marqueeStyle.height,
+                border: "1px dashed #888",
+                background: "rgba(100,100,100,0.06)",
+                pointerEvents: "none",
+                zIndex: 50,
+              }}
+            />
+          )}
+        </div>
+        </div>
       </div>
     </div>
   );

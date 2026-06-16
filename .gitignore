@@ -25,3 +25,4 @@ node_modules/
 *.sw?
 
 __pycache__
+backend/data
