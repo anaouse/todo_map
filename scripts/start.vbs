@@ -15,9 +15,9 @@ WshShell.Run _
 
 WScript.Sleep 1500
 
-' ── Frontend (Vite preview on port 3000) ────────────────────────────────
+' ── Frontend build + Vite preview on port 3000 ──────────────────────────
 WshShell.Run _
-    "cmd /c cd /d """ & strProjectDir & """ && npx vite preview --port 3000 --strictPort", _
+    "cmd /c cd /d """ & strProjectDir & """ && npm run build && npx vite preview --port 3000 --strictPort", _
     0, False
 
 MsgBox "Backend:  http://localhost:11134" & vbCrLf & _

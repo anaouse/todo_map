@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import "./App.css";
 
 const GRID = 32;
 const CANVAS_W = 4000;
@@ -487,97 +488,47 @@ export default function App() {
 
   const isMultiDragging = multiDrag !== null;
 
+  // ── Cursor class for scroll area ───────────────────────────────────────────
+  const cursorClass = panning ? "panning" : marquee ? "marqueeing" : "default";
+
   return (
-    <div style={{ width: "100vw", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", background: "#f9f9f9", fontFamily: "monospace" }}>
+    <div className="app-root">
 
       {/* ── Top bar ────────────────────────────────────────────────────── */}
-      <div style={{
-        position: "relative",
-        zIndex: 200,
-        height: 48,
-        flexShrink: 0,
-        background: "#f9f9f9",
-        borderBottom: "1px solid #e8e8e8",
-        display: "flex",
-        alignItems: "center",
-        padding: "0 12px",
-      }}>
+      <div className="topbar">
         {/* Menu button */}
         <div style={{ position: "relative" }}>
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            style={{
-              width: 36,
-              height: 36,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-              background: menuOpen ? "#f0f0f0" : "#fff",
-              cursor: "pointer",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 4,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-              padding: 0,
-            }}
+            className={`menu-btn${menuOpen ? " open" : ""}`}
           >
             {[0, 1, 2].map((i) => (
-              <span key={i} style={{ display: "block", width: 16, height: 1.5, background: "#555", borderRadius: 1 }} />
+              <span key={i} className="menu-btn-line" />
             ))}
           </button>
 
           {/* Dropdown */}
           {menuOpen && (
-            <div
-              style={{
-                position: "absolute",
-                top: 42,
-                left: 0,
-                background: "#fff",
-                border: "1px solid #ddd",
-                borderRadius: 6,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
-                minWidth: 200,
-                overflow: "hidden",
-                zIndex: 300,
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
+            <div className="dropdown" onMouseDown={(e) => e.stopPropagation()}>
               {canvases.length === 0 && (
-                <div style={{ padding: "10px 14px", fontSize: 12, color: "#aaa" }}>no canvases yet</div>
+                <div className="dropdown-empty">no canvases yet</div>
               )}
               {canvases.map((c) => (
                 <div
                   key={c.id}
                   onClick={() => loadCanvas(c)}
-                  style={{
-                    padding: "8px 14px",
-                    fontSize: 13,
-                    cursor: "pointer",
-                    background: currentCanvas?.id === c.id ? "#f5f5f5" : "transparent",
-                    color: currentCanvas?.id === c.id ? "#222" : "#444",
-                    fontWeight: currentCanvas?.id === c.id ? 600 : 400,
-                    borderLeft: currentCanvas?.id === c.id ? "2px solid #888" : "2px solid transparent",
-                  }}
-                  onMouseEnter={(e) => { if (currentCanvas?.id !== c.id) (e.currentTarget as HTMLDivElement).style.background = "#fafafa"; }}
-                  onMouseLeave={(e) => { if (currentCanvas?.id !== c.id) (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
+                  className={`dropdown-item${currentCanvas?.id === c.id ? " active" : ""}`}
                 >
                   {c.name}
                 </div>
               ))}
-              <div style={{ height: 1, background: "#eee", margin: "4px 0" }} />
+              <div className="dropdown-divider" />
               {!creatingCanvas ? (
-                <div
-                  onClick={() => setCreatingCanvas(true)}
-                  style={{ padding: "8px 14px", fontSize: 13, cursor: "pointer", color: "#666" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#fafafa"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
-                >
+                <div onClick={() => setCreatingCanvas(true)} className="dropdown-new-btn">
                   + new canvas
                 </div>
               ) : (
-                <div style={{ padding: "6px 10px", display: "flex", gap: 6 }}>
+                <div className="dropdown-new-form">
                   <input
                     ref={newCanvasInputRef}
                     value={newCanvasName}
@@ -587,12 +538,9 @@ export default function App() {
                       if (e.key === "Escape") { setCreatingCanvas(false); setNewCanvasName(""); }
                     }}
                     placeholder="canvas name"
-                    style={{ flex: 1, fontSize: 12, border: "1px solid #ccc", borderRadius: 4, padding: "4px 6px", fontFamily: "monospace", outline: "none" }}
+                    className="dropdown-new-input"
                   />
-                  <button
-                    onClick={handleCreateCanvas}
-                    style={{ fontSize: 12, border: "1px solid #ccc", borderRadius: 4, padding: "4px 8px", cursor: "pointer", background: "#fff" }}
-                  >
+                  <button onClick={handleCreateCanvas} className="dropdown-new-ok">
                     ok
                   </button>
                 </div>
@@ -603,30 +551,14 @@ export default function App() {
 
         {/* Canvas title — centered in the bar */}
         {currentCanvas && (
-          <div style={{
-            position: "absolute",
-            left: "50%",
-            transform: "translateX(-50%)",
-            fontSize: 12,
-            color: "#bbb",
-            pointerEvents: "none",
-            letterSpacing: "0.05em",
-          }}>
-            {currentCanvas.name}
-          </div>
+          <div className="canvas-title">{currentCanvas.name}</div>
         )}
       </div>
 
       {/* ── Scrollable canvas area ─────────────────────────────────────── */}
       <div
         ref={scrollRef}
-        style={{
-          flex: 1,
-          overflow: "auto",
-          cursor: panning ? "grabbing" : marquee ? "crosshair" : "grab",
-          userSelect: "none",
-          position: "relative",
-        }}
+        className={`scroll-area ${cursorClass}`}
         onDoubleClick={onDoubleClick}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
@@ -635,23 +567,21 @@ export default function App() {
       >
         {/* Fixed-size world */}
         {/* Size wrapper expands to match scaled world so scrollbars are correct */}
-        <div style={{ width: CANVAS_W * scale, height: CANVAS_H * scale, position: "relative", flexShrink: 0 }}>
+        <div
+          className="size-wrapper"
+          style={{ width: CANVAS_W * scale, height: CANVAS_H * scale }}
+        >
         <div
           ref={worldRef}
+          className="world"
           style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
             width: CANVAS_W,
             height: CANVAS_H,
             transform: `scale(${scale})`,
-            transformOrigin: "0 0",
           }}
         >
           {/* Grid dots */}
-          <svg
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-          >
+          <svg className="grid-svg">
             <defs>
               <pattern id="grid" x={0} y={0} width={GRID} height={GRID} patternUnits="userSpaceOnUse">
                 <circle cx={0} cy={0} r={0.8} fill="#ccc" />
@@ -664,32 +594,19 @@ export default function App() {
           {items.map((item) => {
             const isSelected = selectedIds.has(item.id);
             const isDraggingThis = dragging?.id === item.id || (isMultiDragging && isSelected);
+
+            let nodeClass = "todo-node";
+            if (isSelected) nodeClass += " selected";
+            if (isDraggingThis) nodeClass += " dragging";
+
             return (
               <div
                 key={item.id}
-                className="todo-node"
+                className={nodeClass}
                 style={{
-                  position: "absolute",
                   left: item.x,
                   top: item.y,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  background: "#fff",
-                  border: isSelected ? "1px solid #888" : "1px solid #d0d0d0",
-                  borderRadius: 4,
-                  padding: "3px 8px",
                   cursor: isDraggingThis ? "grabbing" : "grab",
-                  boxShadow: isDraggingThis
-                    ? "0 4px 12px rgba(0,0,0,0.15)"
-                    : isSelected
-                      ? "0 0 0 2px rgba(0,0,0,0.08)"
-                      : "0 1px 3px rgba(0,0,0,0.06)",
-                  minWidth: 120,
-                  whiteSpace: "nowrap",
-                  outline: isSelected && !isDraggingThis ? "1.5px solid #aaa" : "none",
-                  outlineOffset: 2,
-                  zIndex: isDraggingThis ? 10 : 1,
                 }}
                 onMouseDown={(e) => onNodeMouseDown(e, item.id)}
                 onMouseEnter={() => setHoveredId(item.id)}
@@ -705,7 +622,7 @@ export default function App() {
                   checked={item.done}
                   onChange={() => toggleDone(item.id)}
                   onClick={(e) => e.stopPropagation()}
-                  style={{ cursor: "pointer", accentColor: "#555", flexShrink: 0 }}
+                  className="todo-checkbox"
                 />
                 {editingId === item.id ? (
                   <input
@@ -722,25 +639,14 @@ export default function App() {
                       setEditingId(null);
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    style={{
-                      border: "none",
-                      outline: "none",
-                      background: "transparent",
-                      fontFamily: "monospace",
-                      fontSize: 13,
-                      width: Math.max(80, item.text.length * 8),
-                      minWidth: 80,
-                    }}
+                    className="todo-edit-input"
+                    style={{ width: Math.max(80, item.text.length * 8) }}
                   />
                 ) : (
-                  <span style={{
-                    fontSize: 13,
-                    color: item.done ? "#aaa" : "#222",
-                    textDecoration: item.done ? "line-through" : "none",
-                    minWidth: 80,
-                    display: "inline-block",
-                  }}>
-                    {item.text || <span style={{ color: "#bbb" }}>…</span>}
+                  <span
+                    className={`todo-text${item.done ? " done" : ""}${!item.text ? " placeholder" : ""}`}
+                  >
+                    {item.text || "…"}
                   </span>
                 )}
                 {hoveredId === item.id && editingId !== item.id && (
@@ -748,17 +654,7 @@ export default function App() {
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
                     title="Delete (Ctrl+D)"
-                    style={{
-                      marginLeft: 2,
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      color: "#bbb",
-                      fontSize: 12,
-                      lineHeight: 1,
-                      padding: "0 2px",
-                      flexShrink: 0,
-                    }}
+                    className="todo-delete-btn"
                   >
                     ✕
                   </button>
@@ -769,19 +665,7 @@ export default function App() {
 
           {/* Marquee */}
           {marqueeStyle && marqueeStyle.width > 2 && marqueeStyle.height > 2 && (
-            <div
-              style={{
-                position: "absolute",
-                left: marqueeStyle.left,
-                top: marqueeStyle.top,
-                width: marqueeStyle.width,
-                height: marqueeStyle.height,
-                border: "1px dashed #888",
-                background: "rgba(100,100,100,0.06)",
-                pointerEvents: "none",
-                zIndex: 50,
-              }}
-            />
+            <div className="marquee" style={marqueeStyle} />
           )}
         </div>
         </div>
