@@ -148,7 +148,7 @@
   user-select: none;
   position: relative;
 }
-.scroll-area.panning    { cursor: grabbing; }
+.scroll-area.panning    { cursor: grab; }
 .scroll-area.marqueeing { cursor: crosshair; }
 .scroll-area.default    { cursor: grab; }
 
@@ -194,6 +194,11 @@
   box-shadow: 0 0 0 2px rgba(0,0,0,0.08);
   outline: 1.5px solid #aaa;
   outline-offset: 2px;
+}
+
+.todo-node.editing {
+  background: #f0fdf4;
+  border-color: #86d3a0;
 }
 
 .todo-node.dragging {

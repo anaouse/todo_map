@@ -598,6 +598,7 @@ export default function App() {
             let nodeClass = "todo-node";
             if (isSelected) nodeClass += " selected";
             if (isDraggingThis) nodeClass += " dragging";
+            if (editingId === item.id) nodeClass += " editing";
 
             return (
               <div
@@ -606,7 +607,7 @@ export default function App() {
                 style={{
                   left: item.x,
                   top: item.y,
-                  cursor: isDraggingThis ? "grabbing" : "grab",
+                  cursor: "grab",
                 }}
                 onMouseDown={(e) => onNodeMouseDown(e, item.id)}
                 onMouseEnter={() => setHoveredId(item.id)}
