@@ -18,4 +18,4 @@ for /f %%a in (
 )
 
 echo Done.
-pause
+if not "%1"=="/nopause" pause

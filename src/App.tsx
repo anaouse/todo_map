@@ -203,16 +203,21 @@ export default function App() {
     (e: WheelEvent) => {
       e.preventDefault();
       const scroll = scrollRef.current!;
-      const rect = scroll.getBoundingClientRect();
-      const mx = e.clientX - rect.left; // mouse pos relative to viewport
-      const my = e.clientY - rect.top;
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      const newScale = Math.min(2.5, Math.max(0.3, scale * delta));
-      // Adjust scroll so the point under the mouse stays fixed
-      const ratio = newScale / scale;
-      scroll.scrollLeft = (scroll.scrollLeft + mx) * ratio - mx;
-      scroll.scrollTop  = (scroll.scrollTop  + my) * ratio - my;
-      setScale(newScale);
+      if (e.ctrlKey) {
+        // Zoom with Ctrl+scroll
+        const rect = scroll.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newScale = Math.min(2.5, Math.max(0.3, scale * delta));
+        const ratio = newScale / scale;
+        scroll.scrollLeft = (scroll.scrollLeft + mx) * ratio - mx;
+        scroll.scrollTop  = (scroll.scrollTop  + my) * ratio - my;
+        setScale(newScale);
+      } else {
+        // Pan canvas vertically with plain scroll
+        scroll.scrollTop += e.deltaY;
+      }
     },
     [scale],
   );
@@ -443,9 +448,6 @@ export default function App() {
               : it,
           ),
         );
-      } else if (e.key === "d" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        deleteItem(id);
       } else if (e.key === "p" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         toggleDone(id);
@@ -462,7 +464,7 @@ export default function App() {
         setEditingId(null);
       }
     },
-    [items, deleteItem, toggleDone, navigateTo],
+    [items, toggleDone, navigateTo],
   );
 
   // ── Marquee rect in scroll-relative coords ────────────────────────────────
@@ -654,7 +656,7 @@ export default function App() {
                   <button
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
-                    title="Delete (Ctrl+D)"
+                    title="Delete"
                     className="todo-delete-btn"
                   >
                     ✕
