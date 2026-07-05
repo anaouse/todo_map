@@ -201,10 +201,11 @@ export default function App() {
 
   const onWheel = useCallback(
     (e: WheelEvent) => {
-      e.preventDefault();
       const scroll = scrollRef.current!;
+
       if (e.ctrlKey) {
-        // Zoom with Ctrl+scroll
+        // 只有在按住 Ctrl 键进行缩放时，才阻止浏览器的默认滚动
+        e.preventDefault();
         const rect = scroll.getBoundingClientRect();
         const mx = e.clientX - rect.left;
         const my = e.clientY - rect.top;
@@ -214,10 +215,8 @@ export default function App() {
         scroll.scrollLeft = (scroll.scrollLeft + mx) * ratio - mx;
         scroll.scrollTop  = (scroll.scrollTop  + my) * ratio - my;
         setScale(newScale);
-      } else {
-        // Pan canvas vertically with plain scroll
-        scroll.scrollTop += e.deltaY;
       }
+      // 如果没有按 Ctrl，我们什么都不写，完全交给浏览器原生处理上下左右的滚动！
     },
     [scale],
   );

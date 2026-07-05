@@ -1,11 +1,9 @@
-一切就绪。改动总结：
+修改完成。总结一下：
 
-### `App.tsx`
-- 引入 `useMemo`
-- 新增 `overlappingIds` 计算：对所有 item 两两做矩形碰撞检测（宽 ≈ `Math.max(120, text.length*8+60)`，高 = `30px`），收集所有参与重叠的 item id 到一个 `Set` 中
-- 渲染时为重叠 item 追加 `overlapping` CSS class
+| 属性 | 作用 |
+|------|------|
+| `scrollbar-width: none` | 隐藏 Firefox 的滚动条 |
+| `-ms-overflow-style: none` | 隐藏 IE/旧版 Edge 的滚动条 |
+| `::-webkit-scrollbar { display: none }` | 隐藏 Chrome/Safari/新版 Edge 的滚动条 |
 
-### `App.css`
-- 新增 `.todo-node.overlapping`：红色边框 `#e53e3e` + 半透明红色背景 `rgba(255,80,80,0.08)`
-
-现在只要两个 item 位置有重叠，它们都会变成红色，一眼就能发现。
+`overflow: auto` 保持不变，所以 `scrollRef.current.scrollLeft` / `scrollTop` 依然可以正常读写，你的**滚轮上下滚动、Ctrl+滚轮缩放、鼠标拖拽平移**这些功能完全不受影响——只是滚动条不再可见了。
