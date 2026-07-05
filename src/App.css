@@ -209,6 +209,11 @@
   outline: none;
 }
 
+.todo-node.overlapping {
+  border-color: #e53e3e;
+  background: rgba(255, 80, 80, 0.08);
+}
+
 /* ── Node internals ───────────────────────────────────────────── */
 .todo-checkbox {
   cursor: pointer;

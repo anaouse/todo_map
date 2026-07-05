@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import "./App.css";
 
 const GRID = 32;
@@ -490,6 +490,30 @@ export default function App() {
 
   const isMultiDragging = multiDrag !== null;
 
+  // ── Overlap detection ────────────────────────────────────────────────────
+
+  const overlappingIds = useMemo(() => {
+    const ids = new Set<string>();
+    const rects = items.map((item) => ({
+      id: item.id,
+      left: item.x,
+      top: item.y,
+      right: item.x + Math.max(120, item.text.length * 8 + 60),
+      bottom: item.y + 30,
+    }));
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i];
+        const b = rects[j];
+        if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) {
+          ids.add(a.id);
+          ids.add(b.id);
+        }
+      }
+    }
+    return ids;
+  }, [items]);
+
   // ── Cursor class for scroll area ───────────────────────────────────────────
   const cursorClass = panning ? "panning" : marquee ? "marqueeing" : "default";
 
@@ -601,6 +625,7 @@ export default function App() {
             if (isSelected) nodeClass += " selected";
             if (isDraggingThis) nodeClass += " dragging";
             if (editingId === item.id) nodeClass += " editing";
+            if (overlappingIds.has(item.id)) nodeClass += " overlapping";
 
             return (
               <div
