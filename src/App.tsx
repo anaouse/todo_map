@@ -254,9 +254,9 @@ export default function App() {
         return;
       }
       const onNode = (e.target as HTMLElement).closest(".todo-node");
-      if (e.button === 0 && !onNode && !e.ctrlKey) {
+      if (e.button === 2 && !onNode) {
         setSelectedIds(new Set());
-        // Start panning by dragging the background
+        // Start panning by dragging the background (right-click)
         const scroll = scrollRef.current!;
         setPanning({
           startMouse: { x: e.clientX, y: e.clientY },
@@ -353,6 +353,7 @@ export default function App() {
 
   const onNodeMouseDown = useCallback(
     (e: React.MouseEvent, id: string) => {
+      if (e.button !== 0) return; // Only left-click drags items
       if ((e.target as HTMLElement).tagName === "INPUT") return;
       e.stopPropagation();
       e.preventDefault();
@@ -584,6 +585,7 @@ export default function App() {
       <div
         ref={scrollRef}
         className={`scroll-area ${cursorClass}`}
+        onContextMenu={(e) => e.preventDefault()}
         onDoubleClick={onDoubleClick}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
