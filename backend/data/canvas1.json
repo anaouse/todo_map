@@ -1,5 +1,13 @@
 {
   "id": "canvas1",
   "name": "canvas1",
-  "items": []
+  "items": [
+    {
+      "id": "todo-1783581038103",
+      "x": 256.0,
+      "y": 224.0,
+      "text": "测试一下没问题吧",
+      "done": false
+    }
+  ]
 }

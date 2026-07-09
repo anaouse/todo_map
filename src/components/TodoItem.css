@@ -1,0 +1,82 @@
+/* ── Todo node ────────────────────────────────────────────────── */
+.todo-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  padding: 3px 8px;
+  min-width: 120px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  z-index: 1;
+}
+
+.todo-node.selected {
+  border-color: #888;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.08);
+  outline: 1.5px solid #aaa;
+  outline-offset: 2px;
+}
+
+.todo-node.editing {
+  background: #f0fdf4;
+  border-color: #86d3a0;
+}
+
+.todo-node.dragging {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10;
+}
+.todo-node.dragging.selected {
+  outline: none;
+}
+
+.todo-node.overlapping {
+  border-color: #e53e3e;
+  background: rgba(255, 80, 80, 0.08);
+}
+
+/* ── Node internals ───────────────────────────────────────────── */
+.todo-checkbox {
+  cursor: pointer;
+  accent-color: #555;
+  flex-shrink: 0;
+}
+
+.todo-edit-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: monospace;
+  font-size: 13px;
+  min-width: 80px;
+}
+
+.todo-text {
+  font-size: 13px;
+  color: #222;
+  min-width: 80px;
+  display: inline-block;
+}
+.todo-text.done {
+  color: #aaa;
+  text-decoration: line-through;
+}
+.todo-text.placeholder {
+  color: #bbb;
+}
+
+.todo-delete-btn {
+  margin-left: 2px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #bbb;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
