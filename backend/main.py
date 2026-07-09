@@ -1,6 +1,6 @@
 """
 FastAPI backend for TodoMap
-Run: uvicorn main:app --reload --port 8000
+Run: uv run uvicorn main:app --reload --port 8000
 
 Data is stored as JSON files in ./data/<canvas_id>.json
 """
