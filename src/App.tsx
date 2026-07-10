@@ -62,7 +62,6 @@ export default function App() {
       setCanvases(list);
       if (list.length > 0) loadCanvas(list[0]);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadCanvas = useCallback(async (meta: CanvasMeta) => {
