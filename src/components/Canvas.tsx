@@ -1,7 +1,7 @@
-import type { TodoItem } from "../types";
-import { CANVAS_W, CANVAS_H, GRID } from "../constants";
-import useCanvas from "../hooks/useCanvas";
-import TodoItemComponent from "./TodoItem";
+import type { TodoItem } from "@/types";
+import { CANVAS_W, CANVAS_H, GRID } from "@/constants";
+import useCanvas from "@/hooks/useCanvas";
+import TodoItemComponent from "@/components/TodoItem";
 
 interface CanvasProps {
   items: TodoItem[];

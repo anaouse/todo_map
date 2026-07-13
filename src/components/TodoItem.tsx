@@ -1,4 +1,4 @@
-import type { TodoItem as TodoItemType } from "../types";
+import type { TodoItem as TodoItemType } from "@/types";
 
 interface TodoItemProps {
   item: TodoItemType;

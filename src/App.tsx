@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import type { TodoItem, CanvasMeta } from "./types";
-import { API } from "./constants";
-import Header from "./components/Header";
-import Canvas from "./components/Canvas";
+import type { TodoItem, CanvasMeta } from "@/types";
+import { API } from "@/constants";
+import Header from "@/components/Header";
+import Canvas from "@/components/Canvas";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

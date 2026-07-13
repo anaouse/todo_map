@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import type { CanvasMeta } from "../types";
+import type { CanvasMeta } from "@/types";
 
 interface HeaderProps {
   menuOpen: boolean;

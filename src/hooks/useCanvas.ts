@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import type { TodoItem } from "../types";
-import { GRID, CANVAS_W, CANVAS_H } from "../constants";
+import type { TodoItem } from "@/types";
+import { GRID, CANVAS_W, CANVAS_H } from "@/constants";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
