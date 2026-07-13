@@ -12,7 +12,7 @@
   cursor: crosshair;
 }
 .scroll-area.default {
-  cursor: grab;
+  cursor: default;
 }
 
 .size-wrapper {

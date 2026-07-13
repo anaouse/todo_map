@@ -32,6 +32,7 @@ export default function Canvas({
       className={`scroll-area ${cursorClass}`}
       {...canvasHandlers}
     >
+      {/*撑开然后使用浏览器自带的上下和左右滚动*/}
       <div
         className="size-wrapper"
         style={{ width: CANVAS_W * scale, height: CANVAS_H * scale }}
@@ -67,7 +68,7 @@ export default function Canvas({
             <TodoItemComponent key={item.id} item={item} {...getItemProps(item)} />
           ))}
 
-          {/* Marquee */}
+          {/* 框选的那个背景 */}
           {marqueeStyle && marqueeStyle.width > 2 && marqueeStyle.height > 2 && (
             <div className="marquee" style={marqueeStyle} />
           )}

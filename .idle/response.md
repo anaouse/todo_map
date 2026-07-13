@@ -1,13 +1,19 @@
-TypeScript 编译通过，零错误。总结一下改动：
+已简化 [useCanvas.ts](D:/projects/todo_map/src/hooks/useCanvas.ts:318) 的键盘逻辑。
 
-| 文件 | 改动 |
-|---|---|
-| `vite.config.ts` | 补上 `import path from 'path'`（原配置漏了） |
-| `App.tsx` | `./types` → `@/types`，`./constants` → `@/constants`，`./components/...` → `@/components/...` |
-| `main.tsx` | `./App` → `@/App`，所有 `./....css` → `@/....css` |
-| `components/Canvas.tsx` | `../types` → `@/types`，`../constants` → `@/constants`，`../hooks/useCanvas` → `@/hooks/useCanvas`，`./TodoItem` → `@/components/TodoItem` |
-| `components/Header.tsx` | `../types` → `@/types` |
-| `components/TodoItem.tsx` | `../types` → `@/types` |
-| `hooks/useCanvas.ts` | `../types` → `@/types`，`../constants` → `@/constants` |
+现在 `onKeyDown` 只保留：
 
-现在 `src/` 下所有内部引用统一使用 `@/` 前缀，不再有相对路径了。
+```ts
+if (e.key === "Escape") {
+  setEditingId(null);
+}
+```
+
+已经移除：
+
+- `Enter` 新建下方 todo
+- `Tab` / `Shift+Tab` 横向移动
+- `Ctrl/Cmd + P` 切换完成
+- 方向键节点导航
+- 对应的 `navigateTo` 函数
+
+`toggleDone` 没删，因为它还被 todo 节点里的完成按钮使用。构建命令这边没拿到诊断输出，但你已经前端测试通过，那当前改动就收敛在预期范围内。

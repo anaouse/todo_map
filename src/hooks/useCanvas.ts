@@ -315,96 +315,11 @@ export default function useCanvas(
     [setItems],
   );
 
-  const navigateTo = useCallback(
-    (
-      id: string,
-      dir: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight",
-    ) => {
-      const cur = items.find((it) => it.id === id);
-      if (!cur) return;
-      const others = items.filter((it) => it.id !== id);
-      let candidates: TodoItem[];
-      if (dir === "ArrowUp") candidates = others.filter((it) => it.y < cur.y);
-      else if (dir === "ArrowDown")
-        candidates = others.filter((it) => it.y > cur.y);
-      else if (dir === "ArrowLeft")
-        candidates = others.filter((it) => it.x < cur.x);
-      else candidates = others.filter((it) => it.x > cur.x);
-      if (!candidates.length) return;
-      const isV = dir === "ArrowUp" || dir === "ArrowDown";
-      candidates.sort((a, b) => {
-        const ap = isV ? Math.abs(a.x - cur.x) : Math.abs(a.y - cur.y);
-        const bp = isV ? Math.abs(b.x - cur.x) : Math.abs(b.y - cur.y);
-        const as_ = isV ? Math.abs(a.y - cur.y) : Math.abs(a.x - cur.x);
-        const bs_ = isV ? Math.abs(b.y - cur.y) : Math.abs(b.x - cur.x);
-        return ap !== bp ? ap - bp : as_ - bs_;
-      });
-      setEditingId(candidates[0].id);
-    },
-    [items],
-  );
-
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
-      const idx = items.findIndex((it) => it.id === id);
-      const item = items[idx];
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const nid = newId();
-        setItems((prev) => {
-          const n = [...prev];
-          n.splice(idx + 1, 0, {
-            id: nid,
-            x: item.x,
-            y: item.y + GRID,
-            text: "",
-            done: false,
-          });
-          return n;
-        });
-        setEditingId(nid);
-      } else if (e.key === "Tab") {
-        e.preventDefault();
-        const d = e.shiftKey ? -4 : 4;
-        setItems((prev) =>
-          prev.map((it) =>
-            it.id === id
-              ? {
-                  ...it,
-                  x: Math.max(0, Math.min(CANVAS_W - 200, it.x + d * GRID)),
-                }
-              : it,
-          ),
-        );
-      } else if (e.key === "p" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        toggleDone(id);
-      } else if (
-        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
-      ) {
-        const inp = e.currentTarget;
-        const atS = inp.selectionStart === 0 && inp.selectionEnd === 0;
-        const atE =
-          inp.selectionStart === inp.value.length &&
-          inp.selectionEnd === inp.value.length;
-        const isH = e.key === "ArrowLeft" || e.key === "ArrowRight";
-        if (
-          !isH ||
-          (e.key === "ArrowLeft" && atS) ||
-          (e.key === "ArrowRight" && atE)
-        ) {
-          e.preventDefault();
-          navigateTo(
-            id,
-            e.key as "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight",
-          );
-        }
-      } else if (e.key === "Escape") {
-        setEditingId(null);
-      }
-    },
-    [items, toggleDone, navigateTo, setItems],
-  );
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setEditingId(null);
+    }
+  }, []);
 
   // ── Overlap detection ──────────────────────────────────────────────────────
 
@@ -496,8 +411,7 @@ export default function useCanvas(
           setItems((prev) =>
             prev.map((it) => (it.id === id ? { ...it, text: value } : it)),
           ),
-        onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) =>
-          onKeyDown(e, id),
+        onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => onKeyDown(e),
         onBlur: () => {
           if (!document.hasFocus()) return;
           setEditingId(null);
