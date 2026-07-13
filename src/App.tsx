@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { TodoItem, CanvasMeta } from "@/types";
 import { API } from "@/constants";
 import Header from "@/components/Header";
@@ -58,19 +58,24 @@ export default function App() {
   // ── Persistence ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    apiListCanvases().then((list) => {
+    apiListCanvases().then(async (list) => {
       setCanvases(list);
-      if (list.length > 0) loadCanvas(list[0]);
+      if (list.length > 0) {
+        const meta = list[0];
+        const data = await apiGetCanvas(meta.id);
+        setItems(data.items ?? []);
+        setCurrentCanvas(meta);
+      }
     });
   }, []);
 
-  const loadCanvas = useCallback(async (meta: CanvasMeta) => {
+  async function loadCanvas(meta: CanvasMeta) {
     setMenuOpen(false);
     const data = await apiGetCanvas(meta.id);
     setItems(data.items ?? []);
     setCurrentCanvas(meta);
-    // No need to reset scale/editing/selection here — useCanvas resets on items change
-  }, []);
+    // No need to reset scale/editing/selection here because useCanvas resets on items change
+  }
 
   useEffect(() => {
     if (!currentCanvas) return;
@@ -83,7 +88,7 @@ export default function App() {
     };
   }, [items, currentCanvas]);
 
-  const handleCreateCanvas = useCallback(async () => {
+  async function handleCreateCanvas() {
     const name = newCanvasName.trim();
     if (!name) return;
     const id = canvasId(name);
@@ -93,7 +98,7 @@ export default function App() {
     setNewCanvasName("");
     setCreatingCanvas(false);
     loadCanvas(meta);
-  }, [newCanvasName, loadCanvas]);
+  }
 
   return (
     <div className="app-root">
