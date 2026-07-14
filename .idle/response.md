@@ -1,37 +1,12 @@
-有，证据很明确。`grep` 在构建产物里找到了 React Compiler 的典型输出：
+已修改 [scripts/start.vbs](/D:/projects/todo_map/scripts/start.vbs:21)。
 
-文件：
+现在逻辑是：启动前先检查对应端口是否已经在监听。  
+如果 `11134` 后端或 `3000` 前端已经存在，就复用现有服务，不再重复启动，也就不会触发 Vite 的 `--strictPort` “端口已存在/请先停止”的提示。
+
+另外停止提示也改成了更准确的：
 
 ```text
-dist/assets/index-Dlzgh52c.js
+请运行 scripts\stop.bat 来停止服务。
 ```
 
-关键证据有三类：
-
-```js
-Symbol.for(`react.memo_cache_sentinel`)
-```
-
-这是 React Compiler 生成 memo cache 时常见的 sentinel 标记。
-
-```js
-var l=e((e=>{var t=i().__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
-e.c=function(e){return t.H.useMemoCache(e)}}))
-```
-
-这里能看到 compiler runtime helper，调用的是 React 19 内部的 `useMemoCache`。
-
-还有组件里这种代码：
-
-```js
-function y(e){
-  let t=(0,p.c)(29)
-  ...
-  t[3]===Symbol.for(`react.memo_cache_sentinel`)
-  ...
-}
-```
-
-这就是 compiler 给组件插入的缓存数组。比如 `Header`、`TodoItem`、`Canvas`、`App` 都能看到类似 `(0,p.c)(数字)` 和 `memo_cache_sentinel` 的缓存逻辑。
-
-结论：React Compiler 已经在 build 产物里生效了，不只是依赖装上了。
+我做过一次 `cscript //NoLogo scripts/start.vbs backend` 的语法/运行检查，脚本可正常执行。
