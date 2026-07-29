@@ -4,6 +4,8 @@ import { API } from "@/constants";
 import Header from "@/components/Header";
 import Canvas from "@/components/Canvas";
 
+const DEFAULT_CANVAS_STORAGE_KEY = "todo-map.default-canvas-id";
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function canvasId(name: string) {
@@ -60,12 +62,15 @@ export default function App() {
   useEffect(() => {
     apiListCanvases().then(async (list) => {
       setCanvases(list);
-      if (list.length > 0) {
-        const meta = list[0];
-        const data = await apiGetCanvas(meta.id);
-        setItems(data.items ?? []);
-        setCurrentCanvas(meta);
-      }
+      if (list.length === 0) return;
+
+      const savedCanvasId = localStorage.getItem(DEFAULT_CANVAS_STORAGE_KEY);
+      const meta = list.find((canvas) => canvas.id === savedCanvasId) ?? list[0];
+      localStorage.setItem(DEFAULT_CANVAS_STORAGE_KEY, meta.id);
+
+      const data = await apiGetCanvas(meta.id);
+      setItems(data.items ?? []);
+      setCurrentCanvas(meta);
     });
   }, []);
 
@@ -74,6 +79,7 @@ export default function App() {
     const data = await apiGetCanvas(meta.id);
     setItems(data.items ?? []);
     setCurrentCanvas(meta);
+    localStorage.setItem(DEFAULT_CANVAS_STORAGE_KEY, meta.id);
     // No need to reset scale/editing/selection here because useCanvas resets on items change
   }
 
