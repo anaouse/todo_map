@@ -19,8 +19,29 @@
     {
       "id": "todo-1785291022595",
       "x": 544.0,
-      "y": 224.0,
+      "y": 192.0,
       "text": "todomap自动打开上次的canvas，而不是默认第一个",
+      "done": true
+    },
+    {
+      "id": "todo-1785296876229",
+      "x": 96.0,
+      "y": 192.0,
+      "text": "3道python的leetcode题",
+      "done": false
+    },
+    {
+      "id": "todo-1785296876230",
+      "x": 96.0,
+      "y": 128.0,
+      "text": "routine",
+      "done": false
+    },
+    {
+      "id": "todo-1785296876231",
+      "x": 544.0,
+      "y": 128.0,
+      "text": "project todo",
       "done": false
     }
   ]
